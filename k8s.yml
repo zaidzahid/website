@@ -23,6 +23,13 @@ spec:
         image: techpedia/mywebsite:latest
         ports:
         - containerPort: 80
+        resources:
+          requests:
+            cpu: "250m"       # minimum CPU guaranteed
+            memory: "256Mi"   # minimum memory guaranteed
+          limits:
+            cpu: "500m"       # maximum CPU allowed
+            memory: "512Mi"   # maximum memory allowed
 ---
 apiVersion: v1
 kind: Service
@@ -31,9 +38,29 @@ metadata:
   namespace: mywebsite
 spec:
   selector:
-    app: mywebsite   # ✅ same as Deployment label
+    app: mywebsite
   ports:
   - protocol: TCP
-    port: 80        # service port
-    targetPort: 80  # container port
-  type: NodePort    # use LoadBalancer if on EKS/GKE/AKS
+    port: 80
+    targetPort: 80
+  type: NodePort
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginx-hpa
+  namespace: mywebsite
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-deployment
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50   # scale pods if CPU > 50%
